@@ -14,11 +14,29 @@ interface CountryInfoSheetProps {
   onSelectStatus: (status: CountryStatus) => Promise<void>;
 }
 
-const actionOptions: { label: string; value: CountryStatus }[] = [
-  { label: "Mark as visited", value: "visited" },
-  { label: "Add to wishlist", value: "wishlisted" },
-  { label: "Clear status", value: "unmarked" },
-];
+const COUNTRY_STATUS_ORDER = ["visited", "wishlisted", "unmarked"] as const;
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled country status option: ${value}`);
+}
+
+function getActionOptionLabel(status: CountryStatus): string {
+  switch (status) {
+    case "visited":
+      return "Mark as visited";
+    case "wishlisted":
+      return "Add to wishlist";
+    case "unmarked":
+      return "Clear status";
+    default:
+      return assertNever(status);
+  }
+}
+
+const actionOptions = COUNTRY_STATUS_ORDER.map((value) => ({
+  label: getActionOptionLabel(value),
+  value,
+}));
 
 function getBadgeTextColor(backgroundColor: string, defaultColor: string, inverseColor: string) {
   const normalizedColor = backgroundColor.replace("#", "");
