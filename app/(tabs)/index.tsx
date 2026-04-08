@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { CountryInfoSheet } from "../../components/CountryInfoSheet";
@@ -40,7 +40,11 @@ export default function MapScreen() {
             showResetButton={false}
             statuses={statuses}
           />
-        ) : null}
+        ) : (
+          <View style={styles.loadingState}>
+            <ActivityIndicator color={theme.colors.text} size="small" />
+          </View>
+        )}
       </View>
 
       <CountryInfoSheet
@@ -59,5 +63,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  loadingState: {
+    alignItems: "center",
+    flex: 1,
+    justifyContent: "center",
   },
 });
