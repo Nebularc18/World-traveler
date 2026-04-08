@@ -19,6 +19,21 @@ const actionOptions: { label: string; value: CountryStatus }[] = [
   { label: "Clear status", value: "unmarked" },
 ];
 
+function getBadgeTextColor(backgroundColor: string, defaultColor: string, inverseColor: string) {
+  const normalizedColor = backgroundColor.replace("#", "");
+
+  if (normalizedColor.length !== 6) {
+    return inverseColor;
+  }
+
+  const red = Number.parseInt(normalizedColor.slice(0, 2), 16);
+  const green = Number.parseInt(normalizedColor.slice(2, 4), 16);
+  const blue = Number.parseInt(normalizedColor.slice(4, 6), 16);
+  const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
+
+  return luminance > 0.6 ? defaultColor : inverseColor;
+}
+
 export function CountryInfoSheet({
   country,
   status,
@@ -27,6 +42,11 @@ export function CountryInfoSheet({
 }: CountryInfoSheetProps) {
   const { theme } = useThemePreference();
   const [pendingStatus, setPendingStatus] = useState<CountryStatus | null>(null);
+  const badgeBackgroundColor = getCountryStatusColor(theme, status);
+  const badgeTextColor =
+    status === "unmarked"
+      ? theme.colors.text
+      : getBadgeTextColor(badgeBackgroundColor, theme.colors.background, theme.colors.surface);
 
   return (
     <Modal
@@ -62,14 +82,14 @@ export function CountryInfoSheet({
                   style={[
                     styles.badge,
                     {
-                      backgroundColor: getCountryStatusColor(theme, status),
+                      backgroundColor: badgeBackgroundColor,
                     },
                   ]}
                 >
                   <Text
                     style={[
                       styles.badgeText,
-                      { color: status === "unmarked" ? theme.colors.text : "#FFFFFF" },
+                      { color: badgeTextColor },
                     ]}
                   >
                     {getCountryStatusLabel(status)}

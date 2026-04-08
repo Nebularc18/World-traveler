@@ -28,14 +28,21 @@ export function ThemePreferenceProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let isMounted = true;
+    const mountMutationId = mutationIdRef.current;
 
     getStoredThemePreference()
       .then((storedPreference) => {
-        if (isMounted) {
+        const shouldApplyStoredPreference =
+          isMounted &&
+          mutationIdRef.current === mountMutationId &&
+          preferenceRef.current === "system";
+
+        if (shouldApplyStoredPreference) {
           preferenceRef.current = storedPreference;
           setPreferenceState(storedPreference);
         }
       })
+      .catch(() => undefined)
       .finally(() => {
         if (isMounted) {
           setIsHydrated(true);

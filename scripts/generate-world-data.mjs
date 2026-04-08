@@ -199,6 +199,24 @@ const allGeneratedCountries = [...generatedCountries, ...generatedMarkers].sort(
   left.name.localeCompare(right.name),
 );
 
+const countriesByCode = new Map();
+
+for (const country of allGeneratedCountries) {
+  const existingNames = countriesByCode.get(country.code) ?? [];
+  existingNames.push(country.name);
+  countriesByCode.set(country.code, existingNames);
+}
+
+const duplicateCountryMessages = [...countriesByCode.entries()]
+  .filter(([, names]) => names.length > 1)
+  .map(([code, names]) => `${code}: ${names.join(", ")}`);
+
+if (duplicateCountryMessages.length > 0) {
+  throw new Error(
+    `Duplicate country codes found while generating world data:\n${duplicateCountryMessages.join("\n")}`,
+  );
+}
+
 const worldMapContents = `import type { ContinentKey } from "./continents";
 
 export interface WorldMapCountry {

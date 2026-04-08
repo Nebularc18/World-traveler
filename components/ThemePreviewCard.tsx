@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useThemePreference } from "../hooks/useThemePreference";
+import { resolveTheme } from "../theme";
 import type { ThemePreference } from "../theme/types";
 
 interface ThemePreviewCardProps {
@@ -18,7 +19,8 @@ export function ThemePreviewCard({
   selected,
   onPress,
 }: ThemePreviewCardProps) {
-  const { theme } = useThemePreference();
+  const { systemColorScheme, theme } = useThemePreference();
+  const previewTheme = resolveTheme(value, systemColorScheme);
 
   return (
     <Pressable
@@ -48,10 +50,10 @@ export function ThemePreviewCard({
         />
       </View>
       <View style={styles.previewRow}>
-        <View style={[styles.previewSwatch, { backgroundColor: theme.colors.background }]} />
-        <View style={[styles.previewSwatch, { backgroundColor: theme.colors.surface }]} />
-        <View style={[styles.previewSwatch, { backgroundColor: theme.colors.mapVisited }]} />
-        <View style={[styles.previewSwatch, { backgroundColor: theme.colors.mapWishlisted }]} />
+        <View style={[styles.previewSwatch, { backgroundColor: previewTheme.colors.background }]} />
+        <View style={[styles.previewSwatch, { backgroundColor: previewTheme.colors.surface }]} />
+        <View style={[styles.previewSwatch, { backgroundColor: previewTheme.colors.mapVisited }]} />
+        <View style={[styles.previewSwatch, { backgroundColor: previewTheme.colors.mapWishlisted }]} />
       </View>
     </Pressable>
   );

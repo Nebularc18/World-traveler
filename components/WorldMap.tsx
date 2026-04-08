@@ -325,6 +325,10 @@ function WorldMapComponent(
 
       {showResetButton ? (
         <Pressable
+          accessibilityHint="Resets the map to its default zoom and position"
+          accessibilityLabel="Reset map view"
+          accessibilityRole="button"
+          accessible
           onPress={resetView}
           style={[
             styles.resetButton,

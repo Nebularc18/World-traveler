@@ -17,7 +17,9 @@ export function CountryStatusesProvider({ children }: { children: ReactNode }) {
   const [statuses, setStatuses] = useState<CountryStatusMap>({});
   const [isHydrated, setIsHydrated] = useState(false);
   const statusesRef = useRef<CountryStatusMap>({});
+  const committedStatusesRef = useRef<CountryStatusMap>({});
   const mutationIdRef = useRef(0);
+  const persistenceQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     let isMounted = true;
@@ -26,6 +28,7 @@ export function CountryStatusesProvider({ children }: { children: ReactNode }) {
       .then((storedStatuses) => {
         if (isMounted) {
           statusesRef.current = storedStatuses;
+          committedStatusesRef.current = storedStatuses;
           setStatuses(storedStatuses);
         }
       })
@@ -45,8 +48,7 @@ export function CountryStatusesProvider({ children }: { children: ReactNode }) {
   }, [statuses]);
 
   const setCountryStatus = useCallback(async (code: string, status: CountryStatus) => {
-    const previousStatuses = statusesRef.current;
-    const nextStatuses = { ...previousStatuses };
+    const nextStatuses = { ...statusesRef.current };
     const nextMutationId = mutationIdRef.current + 1;
 
     mutationIdRef.current = nextMutationId;
@@ -60,15 +62,24 @@ export function CountryStatusesProvider({ children }: { children: ReactNode }) {
     statusesRef.current = nextStatuses;
     setStatuses(nextStatuses);
 
+    const persistPromise = persistenceQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        await setStoredCountryStatuses(nextStatuses);
+        committedStatusesRef.current = nextStatuses;
+      });
+
+    persistenceQueueRef.current = persistPromise;
+
     try {
-      await setStoredCountryStatuses(nextStatuses);
+      await persistPromise;
     } catch (error) {
       const shouldRollback =
         mutationIdRef.current === nextMutationId && statusesRef.current === nextStatuses;
 
       if (shouldRollback) {
-        statusesRef.current = previousStatuses;
-        setStatuses(previousStatuses);
+        statusesRef.current = committedStatusesRef.current;
+        setStatuses(committedStatusesRef.current);
       }
 
       throw error;
