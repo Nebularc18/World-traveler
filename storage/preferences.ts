@@ -5,7 +5,13 @@ import type { ThemePreference } from "../theme/types";
 const THEME_PREFERENCE_KEY = "world-traveler/theme-preference";
 
 export async function getThemePreference(): Promise<ThemePreference> {
-  const value = await AsyncStorage.getItem(THEME_PREFERENCE_KEY);
+  let value: string | null;
+
+  try {
+    value = await AsyncStorage.getItem(THEME_PREFERENCE_KEY);
+  } catch {
+    return "system";
+  }
 
   if (value === "light" || value === "dark" || value === "system") {
     return value;
@@ -15,5 +21,9 @@ export async function getThemePreference(): Promise<ThemePreference> {
 }
 
 export async function setThemePreference(value: ThemePreference): Promise<void> {
-  await AsyncStorage.setItem(THEME_PREFERENCE_KEY, value);
+  try {
+    await AsyncStorage.setItem(THEME_PREFERENCE_KEY, value);
+  } catch {
+    throw new Error("Failed to persist theme preference.");
+  }
 }

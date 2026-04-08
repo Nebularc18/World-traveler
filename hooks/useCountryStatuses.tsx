@@ -41,6 +41,7 @@ export function CountryStatusesProvider({ children }: { children: React.ReactNod
       statuses,
       isHydrated,
       async setCountryStatus(code, status) {
+        const previousStatuses = statuses;
         const nextStatuses = { ...statuses };
 
         if (status === "unmarked") {
@@ -50,7 +51,13 @@ export function CountryStatusesProvider({ children }: { children: React.ReactNod
         }
 
         setStatuses(nextStatuses);
-        await setStoredCountryStatuses(nextStatuses);
+
+        try {
+          await setStoredCountryStatuses(nextStatuses);
+        } catch (error) {
+          setStatuses(previousStatuses);
+          throw error;
+        }
       },
       getCountryStatus(code) {
         return statuses[code] ?? "unmarked";

@@ -10,9 +10,10 @@ import { getCountryByCode } from "../../utils/countryHelpers";
 import type { CountryStatus } from "../../theme/types";
 
 export default function MapScreen() {
-  const { theme } = useThemePreference();
-  const { statuses, setCountryStatus } = useCountryStatuses();
+  const { isHydrated: isThemeHydrated, theme } = useThemePreference();
+  const { isHydrated: areStatusesHydrated, statuses, setCountryStatus } = useCountryStatuses();
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
+  const isHydrated = isThemeHydrated && areStatusesHydrated;
 
   const selectedCountry = useMemo(() => getCountryByCode(selectedCode), [selectedCode]);
   const selectedCountryStatus = selectedCode ? statuses[selectedCode] ?? "unmarked" : "unmarked";
@@ -31,7 +32,15 @@ export default function MapScreen() {
       edges={["left", "right"]}
     >
       <View style={styles.content}>
-        <WorldMap immersive onCountryPress={setSelectedCode} selectedCode={selectedCode} showResetButton={false} statuses={statuses} />
+        {isHydrated ? (
+          <WorldMap
+            immersive
+            onCountryPress={setSelectedCode}
+            selectedCode={selectedCode}
+            showResetButton={false}
+            statuses={statuses}
+          />
+        ) : null}
       </View>
 
       <CountryInfoSheet

@@ -43,6 +43,7 @@ export interface AppTheme {
 }
 
 export interface ThemeContextValue {
+  isHydrated: boolean;
   theme: AppTheme;
   preference: ThemePreference;
   systemColorScheme: ColorSchemeName;

@@ -1,7 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useColorScheme } from "react-native";
 
-import { getThemePreference, setThemePreference } from "../storage/preferences";
+import {
+  getThemePreference as getStoredThemePreference,
+  setThemePreference as persistThemePreference,
+} from "../storage/preferences";
 import { resolveTheme } from "../theme";
 import type { ThemeContextValue, ThemePreference } from "../theme/types";
 
@@ -15,7 +18,7 @@ export function ThemePreferenceProvider({ children }: { children: React.ReactNod
   useEffect(() => {
     let isMounted = true;
 
-    getThemePreference()
+    getStoredThemePreference()
       .then((storedPreference) => {
         if (isMounted) {
           setPreferenceState(storedPreference);
@@ -33,23 +36,31 @@ export function ThemePreferenceProvider({ children }: { children: React.ReactNod
   }, []);
 
   const handleSetPreference = useCallback(async (value: ThemePreference) => {
+    const previousPreference = preference;
     setPreferenceState(value);
-    await setThemePreference(value);
-  }, []);
+
+    try {
+      await persistThemePreference(value);
+    } catch (error) {
+      setPreferenceState(previousPreference);
+      throw error;
+    }
+  }, [preference]);
 
   const theme = useMemo(
-    () => resolveTheme(preference, isHydrated ? systemColorScheme : "light"),
-    [isHydrated, preference, systemColorScheme],
+    () => resolveTheme(preference, systemColorScheme),
+    [preference, systemColorScheme],
   );
 
   const value = useMemo(
     () => ({
+      isHydrated,
       theme,
       preference,
       systemColorScheme,
       setPreference: handleSetPreference,
     }),
-    [handleSetPreference, preference, systemColorScheme, theme],
+    [handleSetPreference, isHydrated, preference, systemColorScheme, theme],
   );
 
   return <ThemePreferenceContext.Provider value={value}>{children}</ThemePreferenceContext.Provider>;
