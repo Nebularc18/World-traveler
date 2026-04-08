@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { useThemePreference } from "../hooks/useThemePreference";
 import { getCountryStatusColor, getCountryStatusLabel } from "../utils/countryHelpers";
@@ -78,22 +79,39 @@ export function CountryInfoSheet({
                     {country.continent}
                   </Text>
                 </View>
-                <View
-                  style={[
-                    styles.badge,
-                    {
-                      backgroundColor: badgeBackgroundColor,
-                    },
-                  ]}
-                >
-                  <Text
+                <View style={styles.headerActions}>
+                  <View
                     style={[
-                      styles.badgeText,
-                      { color: badgeTextColor },
+                      styles.badge,
+                      {
+                        backgroundColor: badgeBackgroundColor,
+                      },
                     ]}
                   >
-                    {getCountryStatusLabel(status)}
-                  </Text>
+                    <Text
+                      style={[
+                        styles.badgeText,
+                        { color: badgeTextColor },
+                      ]}
+                    >
+                      {getCountryStatusLabel(status)}
+                    </Text>
+                  </View>
+                  <Pressable
+                    accessibilityLabel="Close"
+                    accessibilityRole="button"
+                    hitSlop={10}
+                    onPress={onClose}
+                    style={[
+                      styles.closeButton,
+                      {
+                        backgroundColor: theme.colors.cardAlt,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                  >
+                    <MaterialCommunityIcons color={theme.colors.textMuted} name="close" size={18} />
+                  </Pressable>
                 </View>
               </View>
 
@@ -168,6 +186,11 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 4,
   },
+  headerActions: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+  },
   countryName: {
     fontSize: 26,
     fontWeight: "700",
@@ -183,6 +206,14 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 13,
     fontWeight: "700",
+  },
+  closeButton: {
+    alignItems: "center",
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 34,
+    justifyContent: "center",
+    width: 34,
   },
   actions: {
     gap: 12,
