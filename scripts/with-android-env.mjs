@@ -38,10 +38,23 @@ function ensureAndroidLocalProperties(sdkPath) {
   }
 
   const escapedSdkPath = sdkPath.replace(/\\/g, "\\\\");
-  const nextContents = `sdk.dir=${escapedSdkPath}\n`;
   const currentContents = existsSync(localPropertiesPath)
     ? readFileSync(localPropertiesPath, "utf8")
     : "";
+  const normalizedContents = currentContents.replace(/\r\n/g, "\n");
+  const sdkLine = `sdk.dir=${escapedSdkPath}`;
+  const lines = normalizedContents
+    .split("\n")
+    .filter((line, index, collection) => !(index === collection.length - 1 && line === ""));
+  const sdkLineIndex = lines.findIndex((line) => line.startsWith("sdk.dir="));
+
+  if (sdkLineIndex >= 0) {
+    lines[sdkLineIndex] = sdkLine;
+  } else {
+    lines.push(sdkLine);
+  }
+
+  const nextContents = `${lines.join("\n")}\n`;
 
   if (currentContents !== nextContents) {
     writeFileSync(localPropertiesPath, nextContents, "utf8");

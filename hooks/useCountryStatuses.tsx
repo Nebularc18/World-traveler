@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 
 import { getStoredCountryStatuses, setStoredCountryStatuses } from "../storage/countryStatusStorage";
 import type { CountryStatus, CountryStatusMap, StoredCountryStatus } from "../theme/types";
@@ -12,9 +13,11 @@ interface CountryStatusesContextValue {
 
 const CountryStatusesContext = createContext<CountryStatusesContextValue | null>(null);
 
-export function CountryStatusesProvider({ children }: { children: React.ReactNode }) {
+export function CountryStatusesProvider({ children }: { children: ReactNode }) {
   const [statuses, setStatuses] = useState<CountryStatusMap>({});
   const [isHydrated, setIsHydrated] = useState(false);
+  const statusesRef = useRef<CountryStatusMap>({});
+  const mutationIdRef = useRef(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -22,6 +25,7 @@ export function CountryStatusesProvider({ children }: { children: React.ReactNod
     getStoredCountryStatuses()
       .then((storedStatuses) => {
         if (isMounted) {
+          statusesRef.current = storedStatuses;
           setStatuses(storedStatuses);
         }
       })
@@ -36,34 +40,54 @@ export function CountryStatusesProvider({ children }: { children: React.ReactNod
     };
   }, []);
 
+  useEffect(() => {
+    statusesRef.current = statuses;
+  }, [statuses]);
+
+  const setCountryStatus = useCallback(async (code: string, status: CountryStatus) => {
+    const previousStatuses = statusesRef.current;
+    const nextStatuses = { ...previousStatuses };
+    const nextMutationId = mutationIdRef.current + 1;
+
+    mutationIdRef.current = nextMutationId;
+
+    if (status === "unmarked") {
+      delete nextStatuses[code];
+    } else {
+      nextStatuses[code] = status as StoredCountryStatus;
+    }
+
+    statusesRef.current = nextStatuses;
+    setStatuses(nextStatuses);
+
+    try {
+      await setStoredCountryStatuses(nextStatuses);
+    } catch (error) {
+      const shouldRollback =
+        mutationIdRef.current === nextMutationId && statusesRef.current === nextStatuses;
+
+      if (shouldRollback) {
+        statusesRef.current = previousStatuses;
+        setStatuses(previousStatuses);
+      }
+
+      throw error;
+    }
+  }, []);
+
+  const getCountryStatus = useCallback(
+    (code: string) => statusesRef.current[code] ?? "unmarked",
+    [],
+  );
+
   const value = useMemo<CountryStatusesContextValue>(
     () => ({
       statuses,
       isHydrated,
-      async setCountryStatus(code, status) {
-        const previousStatuses = statuses;
-        const nextStatuses = { ...statuses };
-
-        if (status === "unmarked") {
-          delete nextStatuses[code];
-        } else {
-          nextStatuses[code] = status as StoredCountryStatus;
-        }
-
-        setStatuses(nextStatuses);
-
-        try {
-          await setStoredCountryStatuses(nextStatuses);
-        } catch (error) {
-          setStatuses(previousStatuses);
-          throw error;
-        }
-      },
-      getCountryStatus(code) {
-        return statuses[code] ?? "unmarked";
-      },
+      setCountryStatus,
+      getCountryStatus,
     }),
-    [isHydrated, statuses],
+    [getCountryStatus, isHydrated, setCountryStatus, statuses],
   );
 
   return <CountryStatusesContext.Provider value={value}>{children}</CountryStatusesContext.Provider>;

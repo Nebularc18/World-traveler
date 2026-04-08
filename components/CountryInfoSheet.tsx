@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useThemePreference } from "../hooks/useThemePreference";
@@ -9,7 +10,7 @@ interface CountryInfoSheetProps {
   country: CountryRecord | null;
   status: CountryStatus;
   onClose: () => void;
-  onSelectStatus: (status: CountryStatus) => void;
+  onSelectStatus: (status: CountryStatus) => Promise<void>;
 }
 
 const actionOptions: { label: string; value: CountryStatus }[] = [
@@ -25,6 +26,7 @@ export function CountryInfoSheet({
   onSelectStatus,
 }: CountryInfoSheetProps) {
   const { theme } = useThemePreference();
+  const [pendingStatus, setPendingStatus] = useState<CountryStatus | null>(null);
 
   return (
     <Modal
@@ -80,16 +82,26 @@ export function CountryInfoSheet({
                   const selected = option.value === status;
                   return (
                     <Pressable
+                      disabled={pendingStatus !== null}
                       key={option.value}
-                      onPress={() => {
-                        onSelectStatus(option.value);
-                        onClose();
+                      onPress={async () => {
+                        setPendingStatus(option.value);
+
+                        try {
+                          await onSelectStatus(option.value);
+                          onClose();
+                        } catch {
+                          console.warn("Failed to update country status.");
+                        } finally {
+                          setPendingStatus(null);
+                        }
                       }}
                       style={[
                         styles.actionButton,
                         {
                           backgroundColor: selected ? theme.colors.primarySoft : theme.colors.cardAlt,
                           borderColor: selected ? theme.colors.primary : theme.colors.border,
+                          opacity: pendingStatus !== null ? 0.7 : 1,
                         },
                       ]}
                     >

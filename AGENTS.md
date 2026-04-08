@@ -41,5 +41,6 @@
 ## Map Data Approach
 - Core map data is local and committed in `data/worldMap.ts`
 - `scripts/generate-world-data.mjs` builds the dataset from `world-countries` plus `d3-geo`
-- The generated map uses a fixed Natural Earth projection and includes Antarctica explicitly
+- The generated map uses a fixed rectangular equirectangular projection and includes Antarctica explicitly
+- Eleven ISO-assigned entries missing from `world-atlas` polygon geometry are added as supplemental marker shapes so the tracked dataset stays at 249 entries
 - Tracking totals use the same generated ISO-assigned dataset as the map, preventing stats/map drift
