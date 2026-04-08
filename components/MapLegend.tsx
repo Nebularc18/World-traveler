@@ -4,7 +4,7 @@ import { useThemePreference } from "../hooks/useThemePreference";
 
 const legendItems = [
   { label: "Visited", colorKey: "mapVisited" as const },
-  { label: "Wishlist", colorKey: "mapWishlisted" as const },
+  { label: "Wishlisted", colorKey: "mapWishlisted" as const },
   { label: "Unmarked", colorKey: "mapUnmarked" as const },
 ];
 
