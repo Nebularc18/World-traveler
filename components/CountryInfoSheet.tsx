@@ -11,7 +11,7 @@ interface CountryInfoSheetProps {
   country: CountryRecord | null;
   status: CountryStatus;
   onClose: () => void;
-  onSelectStatus: (status: CountryStatus) => Promise<void>;
+  onSelectStatus: (status: CountryStatus) => Promise<boolean>;
 }
 
 const COUNTRY_STATUS_ORDER = ["visited", "wishlisted", "unmarked"] as const;
@@ -66,17 +66,18 @@ export function CountryInfoSheet({
     status === "unmarked"
       ? theme.colors.text
       : getBadgeTextColor(badgeBackgroundColor, theme.colors.background, theme.colors.surface);
+  const isWriting = pendingStatus !== null;
 
   return (
     <Modal
       animationType="slide"
-      onRequestClose={onClose}
+      onRequestClose={isWriting ? undefined : onClose}
       transparent
       visible={Boolean(country)}
     >
       <View style={styles.modalRoot}>
         <Pressable
-          onPress={onClose}
+          onPress={isWriting ? undefined : onClose}
           style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]}
         />
         <View
@@ -118,13 +119,15 @@ export function CountryInfoSheet({
                   <Pressable
                     accessibilityLabel="Close"
                     accessibilityRole="button"
+                    disabled={isWriting}
                     hitSlop={10}
-                    onPress={onClose}
+                    onPress={isWriting ? undefined : onClose}
                     style={[
                       styles.closeButton,
                       {
                         backgroundColor: theme.colors.cardAlt,
                         borderColor: theme.colors.border,
+                        opacity: isWriting ? 0.5 : 1,
                       },
                     ]}
                   >
@@ -138,14 +141,21 @@ export function CountryInfoSheet({
                   const selected = option.value === status;
                   return (
                     <Pressable
-                      disabled={pendingStatus !== null}
+                      disabled={isWriting || selected}
                       key={option.value}
                       onPress={async () => {
+                        if (selected || isWriting) {
+                          return;
+                        }
+
                         setPendingStatus(option.value);
 
                         try {
-                          await onSelectStatus(option.value);
-                          onClose();
+                          const didUpdate = await onSelectStatus(option.value);
+
+                          if (didUpdate) {
+                            onClose();
+                          }
                         } catch {
                           console.warn("Failed to update country status.");
                         } finally {
@@ -157,7 +167,7 @@ export function CountryInfoSheet({
                         {
                           backgroundColor: selected ? theme.colors.primarySoft : theme.colors.cardAlt,
                           borderColor: selected ? theme.colors.primary : theme.colors.border,
-                          opacity: pendingStatus !== null ? 0.7 : 1,
+                          opacity: isWriting ? 0.7 : 1,
                         },
                       ]}
                     >

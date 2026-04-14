@@ -20,10 +20,15 @@ export default function MapScreen() {
 
   const handleSelectStatus = async (status: CountryStatus) => {
     if (!selectedCode) {
-      return;
+      return false;
     }
 
-    await setCountryStatus(selectedCode, status);
+    try {
+      await setCountryStatus(selectedCode, status);
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   return (
