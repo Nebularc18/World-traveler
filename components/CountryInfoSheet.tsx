@@ -41,7 +41,7 @@ const actionOptions = COUNTRY_STATUS_ORDER.map((value) => ({
 function getBadgeTextColor(backgroundColor: string, defaultColor: string, inverseColor: string) {
   const normalizedColor = backgroundColor.replace("#", "");
 
-  if (normalizedColor.length !== 6) {
+  if (!/^[0-9a-fA-F]{6}$/.test(normalizedColor)) {
     return inverseColor;
   }
 

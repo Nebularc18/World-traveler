@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -18,7 +18,7 @@ export default function MapScreen() {
   const selectedCountry = useMemo(() => getCountryByCode(selectedCode), [selectedCode]);
   const selectedCountryStatus = selectedCode ? statuses[selectedCode] ?? "unmarked" : "unmarked";
 
-  const handleSelectStatus = async (status: CountryStatus) => {
+  const handleSelectStatus = useCallback(async (status: CountryStatus) => {
     if (!selectedCode) {
       return false;
     }
@@ -29,7 +29,7 @@ export default function MapScreen() {
     } catch {
       return false;
     }
-  };
+  }, [selectedCode, setCountryStatus]);
 
   return (
     <SafeAreaView
