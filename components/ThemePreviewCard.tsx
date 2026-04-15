@@ -9,7 +9,7 @@ interface ThemePreviewCardProps {
   description: string;
   value: ThemePreference;
   selected: boolean;
-  onPress: (value: ThemePreference) => void;
+  onPress: (value: ThemePreference) => Promise<void>;
 }
 
 export function ThemePreviewCard({
@@ -25,7 +25,11 @@ export function ThemePreviewCard({
   return (
     <Pressable
       accessibilityRole="button"
-      onPress={() => onPress(value)}
+      onPress={() => {
+        onPress(value).catch(() => {
+          console.warn("Failed to update theme preference.");
+        });
+      }}
       style={[
         styles.card,
         {

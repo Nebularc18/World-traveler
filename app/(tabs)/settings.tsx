@@ -1,3 +1,4 @@
+import { useCallback, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -25,6 +26,20 @@ const themeOptions: { title: string; description: string; value: ThemePreference
 
 export default function SettingsScreen() {
   const { preference, setPreference, theme } = useThemePreference();
+  const [themeError, setThemeError] = useState<string | null>(null);
+
+  const handleSelectPreference = useCallback(
+    async (value: ThemePreference) => {
+      setThemeError(null);
+
+      try {
+        await setPreference(value);
+      } catch {
+        setThemeError("Theme preference could not be saved. Your previous saved theme was restored.");
+      }
+    },
+    [setPreference],
+  );
 
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: theme.colors.background }]} edges={["top"]}>
@@ -42,13 +57,16 @@ export default function SettingsScreen() {
             <ThemePreviewCard
               key={option.value}
               description={option.description}
-              onPress={setPreference}
+              onPress={handleSelectPreference}
               selected={preference === option.value}
               title={option.title}
               value={option.value}
             />
           ))}
         </View>
+        {themeError ? (
+          <Text style={[styles.errorText, { color: theme.colors.warning }]}>{themeError}</Text>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -76,5 +94,10 @@ const styles = StyleSheet.create({
   },
   options: {
     gap: 14,
+  },
+  errorText: {
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20,
   },
 });

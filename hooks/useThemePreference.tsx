@@ -24,14 +24,18 @@ export function ThemePreferenceProvider({ children }: { children: ReactNode }) {
   const [preference, setPreferenceState] = useState<ThemePreference>("system");
   const [isHydrated, setIsHydrated] = useState(false);
   const preferenceRef = useRef<ThemePreference>("system");
+  const committedPreferenceRef = useRef<ThemePreference>("system");
   const mutationIdRef = useRef(0);
+  const persistenceQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     let isMounted = true;
     const mountMutationId = mutationIdRef.current;
 
-    getStoredThemePreference()
+    const hydrationPromise = getStoredThemePreference()
       .then((storedPreference) => {
+        committedPreferenceRef.current = storedPreference;
+
         const shouldApplyStoredPreference =
           isMounted &&
           mutationIdRef.current === mountMutationId &&
@@ -49,6 +53,8 @@ export function ThemePreferenceProvider({ children }: { children: ReactNode }) {
         }
       });
 
+    persistenceQueueRef.current = hydrationPromise;
+
     return () => {
       isMounted = false;
     };
@@ -59,22 +65,30 @@ export function ThemePreferenceProvider({ children }: { children: ReactNode }) {
   }, [preference]);
 
   const handleSetPreference = useCallback(async (value: ThemePreference) => {
-    const previousPreference = preferenceRef.current;
     const nextMutationId = mutationIdRef.current + 1;
 
     mutationIdRef.current = nextMutationId;
     preferenceRef.current = value;
     setPreferenceState(value);
 
+    const persistPromise = persistenceQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        await persistThemePreference(value);
+        committedPreferenceRef.current = value;
+      });
+
+    persistenceQueueRef.current = persistPromise;
+
     try {
-      await persistThemePreference(value);
+      await persistPromise;
     } catch (error) {
       const shouldRollback =
         mutationIdRef.current === nextMutationId && preferenceRef.current === value;
 
       if (shouldRollback) {
-        preferenceRef.current = previousPreference;
-        setPreferenceState(previousPreference);
+        preferenceRef.current = committedPreferenceRef.current;
+        setPreferenceState(committedPreferenceRef.current);
       }
 
       throw error;
