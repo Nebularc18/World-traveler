@@ -65,7 +65,9 @@ export function ThemePreferenceProvider({ children }: { children: ReactNode }) {
   }, [preference]);
 
   const handleSetPreference = useCallback(async (value: ThemePreference) => {
-    if (preferenceRef.current === value) {
+    const isInitialPreHydrationSelection = !isHydrated && mutationIdRef.current === 0;
+
+    if (preferenceRef.current === value && !isInitialPreHydrationSelection) {
       return;
     }
 
@@ -97,7 +99,7 @@ export function ThemePreferenceProvider({ children }: { children: ReactNode }) {
 
       throw error;
     }
-  }, []);
+  }, [isHydrated]);
 
   const theme = useMemo(
     () => resolveTheme(preference, systemColorScheme),
