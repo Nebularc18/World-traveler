@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -27,15 +27,20 @@ const themeOptions: { title: string; description: string; value: ThemePreference
 export default function SettingsScreen() {
   const { preference, setPreference, theme } = useThemePreference();
   const [themeError, setThemeError] = useState<string | null>(null);
+  const lastThemeRequestId = useRef(0);
 
   const handleSelectPreference = useCallback(
     async (value: ThemePreference) => {
+      const requestId = lastThemeRequestId.current + 1;
+      lastThemeRequestId.current = requestId;
       setThemeError(null);
 
       try {
         await setPreference(value);
       } catch {
-        setThemeError("Theme preference could not be saved. Your previous saved theme was restored.");
+        if (requestId === lastThemeRequestId.current) {
+          setThemeError("Theme preference could not be saved. Your previous saved theme was restored.");
+        }
       }
     },
     [setPreference],

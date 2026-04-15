@@ -71,7 +71,11 @@ export function CountryInfoSheet({
   return (
     <Modal
       animationType="slide"
-      onRequestClose={isWriting ? undefined : onClose}
+      onRequestClose={() => {
+        if (!isWriting) {
+          onClose();
+        }
+      }}
       transparent
       visible={Boolean(country)}
     >

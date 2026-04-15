@@ -25,6 +25,7 @@ export function ThemePreviewCard({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityState={{ selected }}
       onPress={() => {
         onPress(value).catch(() => {
           console.warn("Failed to update theme preference.");

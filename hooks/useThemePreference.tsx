@@ -65,6 +65,10 @@ export function ThemePreferenceProvider({ children }: { children: ReactNode }) {
   }, [preference]);
 
   const handleSetPreference = useCallback(async (value: ThemePreference) => {
+    if (preferenceRef.current === value) {
+      return;
+    }
+
     const nextMutationId = mutationIdRef.current + 1;
 
     mutationIdRef.current = nextMutationId;
