@@ -91,8 +91,9 @@ function getPressedCountryCode(event: NativeSyntheticEvent<PressEventWithFeature
     const code = candidate.properties?.code;
     return typeof code === "string" && code.length > 0;
   });
+  const code = feature?.properties?.code;
 
-  return typeof feature?.properties?.code === "string" ? feature.properties.code : null;
+  return typeof code === "string" ? code : null;
 }
 
 function WorldMapComponent(
@@ -119,27 +120,43 @@ function WorldMapComponent(
       }),
     [statuses, theme.colors.mapUnmarked, theme.colors.mapVisited, theme.colors.mapWishlisted],
   );
-  const selectedFilter = useMemo<FilterSpecification>(
-    () => ["==", ["get", "code"], selectedCode ?? "__none__"],
+  const selectedFilter = useMemo<FilterSpecification | null>(
+    () => (selectedCode ? ["==", ["get", "code"], selectedCode] : null),
     [selectedCode],
   );
 
   const resetView = useCallback(() => {
-    cameraRef.current?.fitBounds(WORLD_BOUNDS, {
-      duration: 300,
-      padding: {
-        top: 24,
-        right: 16,
-        bottom: 24,
-        left: 16,
-      },
-    });
+    if (!cameraRef.current) {
+      return;
+    }
+
+    try {
+      cameraRef.current.fitBounds(WORLD_BOUNDS, {
+        duration: 300,
+        padding: {
+          top: 24,
+          right: 16,
+          bottom: 24,
+          left: 16,
+        },
+      });
+    } catch {
+      // MapLibre can reject camera changes before the native map is ready.
+    }
   }, []);
 
   const changeZoom = useCallback(async (delta: number) => {
-    const currentZoom = (await mapRef.current?.getZoom()) ?? MIN_ZOOM;
-    const nextZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, currentZoom + delta));
-    cameraRef.current?.zoomTo(nextZoom, { duration: 180 });
+    if (!mapRef.current || !cameraRef.current) {
+      return;
+    }
+
+    try {
+      const currentZoom = await mapRef.current.getZoom();
+      const nextZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, currentZoom + delta));
+      cameraRef.current.zoomTo(nextZoom, { duration: 180 });
+    } catch {
+      // Ignore zoom requests before MapLibre has finished wiring native refs.
+    }
   }, []);
 
   useImperativeHandle(ref, () => ({
@@ -230,16 +247,18 @@ function WorldMapComponent(
             source={SOURCE_ID}
             type="line"
           />
-          <Layer
-            filter={selectedFilter}
-            id={SELECTED_COUNTRY_LAYER_ID}
-            paint={{
-              "line-color": theme.colors.mapSelection,
-              "line-width": ["interpolate", ["linear"], ["zoom"], 0, 1.2, 3, 2.4, 6, 4],
-            }}
-            source={SOURCE_ID}
-            type="line"
-          />
+          {selectedFilter ? (
+            <Layer
+              filter={selectedFilter}
+              id={SELECTED_COUNTRY_LAYER_ID}
+              paint={{
+                "line-color": theme.colors.mapSelection,
+                "line-width": ["interpolate", ["linear"], ["zoom"], 0, 1.2, 3, 2.4, 6, 4],
+              }}
+              source={SOURCE_ID}
+              type="line"
+            />
+          ) : null}
         </GeoJSONSource>
       </MapLibreMap>
 

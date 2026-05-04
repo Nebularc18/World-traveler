@@ -8,12 +8,7 @@ export interface WorldMapCountry {
   continent: ContinentKey;
 }
 
-export interface WorldMapCountryProperties {
-  code: string;
-  code3: string;
-  name: string;
-  continent: ContinentKey;
-}
+export type WorldMapCountryProperties = WorldMapCountry;
 
 export const WORLD_MAP_COUNTRIES: WorldMapCountry[] = [
   {
