@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 
-import { geoEquirectangular, geoPath } from "d3-geo";
 import { feature } from "topojson-client";
 
 const require = createRequire(import.meta.url);
@@ -10,11 +9,14 @@ const countries = require("world-countries");
 const worldAtlas = require("world-atlas/countries-10m.json");
 
 const outputDir = path.resolve(process.cwd(), "data");
-const viewBox = { width: 2000, height: 1000, padding: 0 };
 const nonMemberObserverStateCodes = new Set(["PS", "VA"]);
+const appSpecificCountryCodes = new Set(["AQ"]);
 
 function isTrackedCountry(country) {
-  return country.status === "officially-assigned" && (country.unMember || nonMemberObserverStateCodes.has(country.cca2));
+  return (
+    country.status === "officially-assigned" &&
+    (country.unMember || nonMemberObserverStateCodes.has(country.cca2) || appSpecificCountryCodes.has(country.cca2))
+  );
 }
 
 function resolveContinent(region, subregion, code) {
@@ -31,18 +33,6 @@ function resolveContinent(region, subregion, code) {
   }
 
   throw new Error(`Unsupported continent mapping for ${code}: ${region} / ${subregion}`);
-}
-
-function roundNumbers(input, precision = 1) {
-  return input.replace(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi, (match) => {
-    const numeric = Number(match);
-    const rounded = Number(numeric.toFixed(precision));
-    return Number.isInteger(rounded) ? String(rounded) : String(rounded);
-  });
-}
-
-function roundBounds(bounds) {
-  return bounds.map((pair) => pair.map((value) => Number(value.toFixed(1))));
 }
 
 const countryByNumericCode = new Map(
@@ -120,6 +110,10 @@ const markerCountries = countries
     latlng: country.latlng,
   }));
 
+if (!atlasBackedCountries.some((country) => country.code === "AQ")) {
+  throw new Error("Antarctica is missing from the generated dataset.");
+}
+
 if (markerCountries.length > 0) {
   throw new Error(
     `Tracked countries missing atlas geometry: ${markerCountries
@@ -127,47 +121,6 @@ if (markerCountries.length > 0) {
       .join(", ")}`,
   );
 }
-
-const projection = geoEquirectangular()
-  .scale(viewBox.width / (2 * Math.PI))
-  .translate([viewBox.width / 2, viewBox.height / 2]);
-
-const pathGenerator = geoPath(projection);
-const sphereOutlinePath = roundNumbers(pathGenerator({ type: "Sphere" }), 1);
-
-function cleanProjectedPath(pathData) {
-  const cleaned = pathData.split(sphereOutlinePath).join("");
-  return cleaned.trim() || pathData;
-}
-
-const generatedCountries = atlasBackedCountries.map((country) => {
-  const feature = {
-    ...country.feature,
-    properties: {
-      ...country.feature.properties,
-      code: country.code,
-      name: country.name,
-    },
-  };
-
-  const pathData = pathGenerator(feature);
-  const bounds = pathGenerator.bounds(feature);
-
-  if (!pathData) {
-    throw new Error(`Failed to generate path for ${country.code}`);
-  }
-
-  const cleanedPath = cleanProjectedPath(roundNumbers(pathData, 1));
-
-  return {
-    code: country.code,
-    code3: country.code3,
-    name: country.name,
-    continent: country.continent,
-    path: cleanedPath,
-    bounds: roundBounds(bounds),
-  };
-});
 
 function getPolygonCoordinates(geometry) {
   if (geometry.type === "Polygon") {
@@ -227,7 +180,12 @@ function buildCountryGeometry(featureInput) {
       };
 }
 
-const allGeneratedCountries = [...generatedCountries].sort((left, right) =>
+const allGeneratedCountries = atlasBackedCountries.map(({ code, code3, name, continent }) => ({
+  code,
+  code3,
+  name,
+  continent,
+})).sort((left, right) =>
   left.name.localeCompare(right.name),
 );
 
@@ -286,8 +244,6 @@ export interface WorldMapCountry {
   code3: string;
   name: string;
   continent: ContinentKey;
-  path: string;
-  bounds: [[number, number], [number, number]];
 }
 
 export interface WorldMapCountryProperties {
@@ -296,11 +252,6 @@ export interface WorldMapCountryProperties {
   name: string;
   continent: ContinentKey;
 }
-
-export const WORLD_MAP_VIEWBOX = {
-  width: ${viewBox.width},
-  height: ${viewBox.height},
-} as const;
 
 export const WORLD_MAP_COUNTRIES: WorldMapCountry[] = ${JSON.stringify(allGeneratedCountries, null, 2)} as WorldMapCountry[];
 

@@ -10,7 +10,7 @@ World Traveler is an Expo React Native app for tracking where you have been and 
 - Travel stats by total countries and continent.
 - Light, dark, and system theme preferences.
 - Expo Router tab navigation.
-- Generated local world map data for 195 UN member and observer states.
+- Generated local world map data for UN member and observer states, plus Antarctica.
 
 ## Tech Stack
 
@@ -95,7 +95,7 @@ Runs TypeScript checks without emitting files.
 npm run generate:world-data
 ```
 
-Regenerates the local country metadata, SVG path dataset, and GeoJSON map source.
+Regenerates the local country metadata and GeoJSON map source.
 
 ```sh
 npm run doctor
@@ -105,9 +105,9 @@ Runs Expo Doctor.
 
 ## World Map Data
 
-Map data is generated into `data/worldMap.ts` from `world-countries`, `world-atlas`, `topojson-client`, and `d3-geo`. The generator emits both projected path metadata and a local GeoJSON source, keeping the app's tracking dataset aligned with the rendered MapLibre map.
+Map data is generated into `data/worldMap.ts` from `world-countries`, `world-atlas`, and `topojson-client`. The generator emits country metadata and a local GeoJSON source, keeping the app's tracking dataset aligned with the rendered MapLibre map.
 
-The generated dataset tracks the 193 United Nations Member States plus the Holy See/Vatican City and the State of Palestine observer states. All tracked entries use real polygon geometry from `world-atlas`.
+The generated dataset tracks the 193 United Nations Member States plus the Holy See/Vatican City and the State of Palestine observer states, with Antarctica kept as an app-specific map entry. All tracked entries use real polygon geometry from `world-atlas`.
 
 ## Project Structure
 

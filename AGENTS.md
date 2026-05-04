@@ -11,7 +11,7 @@
 ## Key Commands
 
 - `npm install` - install dependencies
-- `npm run generate:world-data` - regenerate the local country metadata, SVG path dataset, and GeoJSON map source
+- `npm run generate:world-data` - regenerate the local country metadata and GeoJSON map source
 - `npm run start` - start Metro for a development build client
 - `npm run android` - build and run the Android development build
 - `npm run lint` - run ESLint
@@ -45,7 +45,7 @@
 ## Map Data Approach
 
 - Core map data is local and committed in `data/worldMap.ts`
-- `scripts/generate-world-data.mjs` builds the dataset from `world-countries`, `world-atlas`, `topojson-client`, and `d3-geo`
-- The generated data includes projected path metadata and a local GeoJSON map source for 195 UN member and observer states
+- `scripts/generate-world-data.mjs` builds the dataset from `world-countries`, `world-atlas`, and `topojson-client`
+- The generated data includes country metadata and a local GeoJSON map source for UN member and observer states, plus Antarctica
 - The tracked dataset intentionally excludes ISO-assigned territories that lack full MapLibre-friendly polygon geometry
-- Tracking totals use the same generated ISO-assigned dataset as the map, preventing stats/map drift
+- Tracking totals use the same generated dataset as the map, preventing stats/map drift

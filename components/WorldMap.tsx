@@ -127,7 +127,6 @@ function WorldMapComponent(
   const resetView = useCallback(() => {
     cameraRef.current?.fitBounds(WORLD_BOUNDS, {
       duration: 300,
-      easing: "ease",
       padding: {
         top: 24,
         right: 16,
@@ -140,7 +139,7 @@ function WorldMapComponent(
   const changeZoom = useCallback(async (delta: number) => {
     const currentZoom = (await mapRef.current?.getZoom()) ?? MIN_ZOOM;
     const nextZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, currentZoom + delta));
-    cameraRef.current?.zoomTo(nextZoom, { duration: 180, easing: "ease" });
+    cameraRef.current?.zoomTo(nextZoom, { duration: 180 });
   }, []);
 
   useImperativeHandle(ref, () => ({
