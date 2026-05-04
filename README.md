@@ -4,13 +4,13 @@ World Traveler is an Expo React Native app for tracking where you have been and 
 
 ## Features
 
-- Interactive SVG world map with pinch and pan gestures.
+- Interactive MapLibre world map with native pinch, pan, and double-tap zoom.
 - Country status tracking for `visited`, `wishlist`, and `unmarked`.
 - Local persistence with AsyncStorage.
 - Travel stats by total countries and continent.
 - Light, dark, and system theme preferences.
 - Expo Router tab navigation.
-- Generated local world map data with Antarctica included.
+- Generated local world map data for 195 UN member and observer states.
 
 ## Tech Stack
 
@@ -18,8 +18,7 @@ World Traveler is an Expo React Native app for tracking where you have been and 
 - React Native and TypeScript
 - Expo Router
 - Expo development builds with `expo-dev-client`
-- `react-native-svg` for map rendering
-- `react-native-gesture-handler` and `react-native-reanimated` for map gestures
+- `@maplibre/maplibre-react-native` for native map rendering and gestures
 - AsyncStorage for local data
 
 ## Getting Started
@@ -96,7 +95,7 @@ Runs TypeScript checks without emitting files.
 npm run generate:world-data
 ```
 
-Regenerates the local country metadata and SVG path dataset.
+Regenerates the local country metadata, SVG path dataset, and GeoJSON map source.
 
 ```sh
 npm run doctor
@@ -106,9 +105,9 @@ Runs Expo Doctor.
 
 ## World Map Data
 
-Map data is generated into `data/worldMap.ts` from `world-countries`, `world-atlas`, `topojson-client`, and `d3-geo`. The generator uses a fixed rectangular equirectangular projection and keeps the app's tracking dataset aligned with the rendered map.
+Map data is generated into `data/worldMap.ts` from `world-countries`, `world-atlas`, `topojson-client`, and `d3-geo`. The generator emits both projected path metadata and a local GeoJSON source, keeping the app's tracking dataset aligned with the rendered MapLibre map.
 
-The generated dataset tracks ISO officially assigned countries, includes Antarctica, and adds supplemental marker shapes for entries that do not have polygon geometry in `world-atlas`.
+The generated dataset tracks the 193 United Nations Member States plus the Holy See/Vatican City and the State of Palestine observer states. All tracked entries use real polygon geometry from `world-atlas`.
 
 ## Project Structure
 

@@ -11,7 +11,11 @@ const worldAtlas = require("world-atlas/countries-10m.json");
 
 const outputDir = path.resolve(process.cwd(), "data");
 const viewBox = { width: 2000, height: 1000, padding: 0 };
-const markerHalfSize = 8;
+const nonMemberObserverStateCodes = new Set(["PS", "VA"]);
+
+function isTrackedCountry(country) {
+  return country.status === "officially-assigned" && (country.unMember || nonMemberObserverStateCodes.has(country.cca2));
+}
 
 function resolveContinent(region, subregion, code) {
   if (code === "AQ" || region === "Antarctic") {
@@ -43,7 +47,7 @@ function roundBounds(bounds) {
 
 const countryByNumericCode = new Map(
   countries
-    .filter((country) => country.status === "officially-assigned" && country.ccn3)
+    .filter((country) => isTrackedCountry(country) && country.ccn3)
     .map((country) => [country.ccn3, country]),
 );
 
@@ -107,7 +111,7 @@ const atlasBackedCountries = [...groupedCountries.values()]
 
 const atlasCodes = new Set(atlasBackedCountries.map((country) => country.code));
 const markerCountries = countries
-  .filter((country) => country.status === "officially-assigned" && !atlasCodes.has(country.cca2))
+  .filter((country) => isTrackedCountry(country) && !atlasCodes.has(country.cca2))
   .map((country) => ({
     code: country.cca2,
     code3: country.cca3,
@@ -116,12 +120,12 @@ const markerCountries = countries
     latlng: country.latlng,
   }));
 
-if (!atlasBackedCountries.some((country) => country.code === "AQ")) {
-  throw new Error("Antarctica is missing from the generated dataset.");
-}
-
-if (!markerCountries.every((country) => Array.isArray(country.latlng) && country.latlng.length === 2)) {
-  throw new Error("A supplemental marker country is missing coordinates.");
+if (markerCountries.length > 0) {
+  throw new Error(
+    `Tracked countries missing atlas geometry: ${markerCountries
+      .map((country) => `${country.code} (${country.name})`)
+      .join(", ")}`,
+  );
 }
 
 const projection = geoEquirectangular()
@@ -165,39 +169,96 @@ const generatedCountries = atlasBackedCountries.map((country) => {
   };
 });
 
-const generatedMarkers = markerCountries.map((country) => {
-  const [latitude, longitude] = country.latlng;
-  const point = projection([longitude, latitude]);
-
-  if (!point) {
-    throw new Error(`Failed to project supplemental marker for ${country.code}`);
+function getPolygonCoordinates(geometry) {
+  if (geometry.type === "Polygon") {
+    return [geometry.coordinates];
   }
 
-  const [x, y] = point;
-  const pathData = [
-    `M${(x - markerHalfSize).toFixed(1)},${(y - markerHalfSize).toFixed(1)}`,
-    `H${(x + markerHalfSize).toFixed(1)}`,
-    `V${(y + markerHalfSize).toFixed(1)}`,
-    `H${(x - markerHalfSize).toFixed(1)}`,
-    "Z",
-  ].join("");
+  if (geometry.type === "MultiPolygon") {
+    return geometry.coordinates;
+  }
 
-  return {
-    code: country.code,
-    code3: country.code3,
-    name: country.name,
-    continent: country.continent,
-    path: roundNumbers(pathData, 1),
-    bounds: roundBounds([
-      [x - markerHalfSize, y - markerHalfSize],
-      [x + markerHalfSize, y + markerHalfSize],
-    ]),
-  };
-});
+  throw new Error(`Unsupported geometry type for map feature: ${geometry.type}`);
+}
 
-const allGeneratedCountries = [...generatedCountries, ...generatedMarkers].sort((left, right) =>
+function normalizeAntimeridianRing(ring) {
+  if (ring.length === 0) {
+    return ring;
+  }
+
+  let longitudeOffset = 0;
+  let previousLongitude = ring[0][0];
+
+  return ring.map(([longitude, latitude], index) => {
+    if (index > 0) {
+      const longitudeDelta = longitude + longitudeOffset - previousLongitude;
+
+      if (longitudeDelta > 180) {
+        longitudeOffset -= 360;
+      } else if (longitudeDelta < -180) {
+        longitudeOffset += 360;
+      }
+    }
+
+    const normalizedLongitude = longitude + longitudeOffset;
+    previousLongitude = normalizedLongitude;
+    return [normalizedLongitude, latitude];
+  });
+}
+
+function normalizeAntimeridianPolygons(polygons) {
+  return polygons.map((polygon) => polygon.map((ring) => normalizeAntimeridianRing(ring)));
+}
+
+function buildCountryGeometry(featureInput) {
+  const features = featureInput.type === "FeatureCollection" ? featureInput.features : [featureInput];
+  const polygons = normalizeAntimeridianPolygons(
+    features.flatMap((countryFeature) => getPolygonCoordinates(countryFeature.geometry)),
+  );
+
+  return polygons.length === 1
+    ? {
+        type: "Polygon",
+        coordinates: polygons[0],
+      }
+    : {
+        type: "MultiPolygon",
+        coordinates: polygons,
+      };
+}
+
+const allGeneratedCountries = [...generatedCountries].sort((left, right) =>
   left.name.localeCompare(right.name),
 );
+
+const geoJsonFeatureByCode = new Map([
+  ...atlasBackedCountries.map((country) => [
+    country.code,
+    {
+      type: "Feature",
+      properties: {
+        code: country.code,
+        code3: country.code3,
+        name: country.name,
+        continent: country.continent,
+      },
+      geometry: buildCountryGeometry(country.feature),
+    },
+  ]),
+]);
+
+const worldMapGeoJson = {
+  type: "FeatureCollection",
+  features: allGeneratedCountries.map((country) => {
+    const geoJsonFeature = geoJsonFeatureByCode.get(country.code);
+
+    if (!geoJsonFeature) {
+      throw new Error(`Missing GeoJSON feature for ${country.code}`);
+    }
+
+    return geoJsonFeature;
+  }),
+};
 
 const countriesByCode = new Map();
 
@@ -218,6 +279,7 @@ if (duplicateCountryMessages.length > 0) {
 }
 
 const worldMapContents = `import type { ContinentKey } from "./continents";
+import type { FeatureCollection, Geometry } from "geojson";
 
 export interface WorldMapCountry {
   code: string;
@@ -228,12 +290,21 @@ export interface WorldMapCountry {
   bounds: [[number, number], [number, number]];
 }
 
+export interface WorldMapCountryProperties {
+  code: string;
+  code3: string;
+  name: string;
+  continent: ContinentKey;
+}
+
 export const WORLD_MAP_VIEWBOX = {
   width: ${viewBox.width},
   height: ${viewBox.height},
 } as const;
 
 export const WORLD_MAP_COUNTRIES: WorldMapCountry[] = ${JSON.stringify(allGeneratedCountries, null, 2)} as WorldMapCountry[];
+
+export const WORLD_MAP_GEOJSON = ${JSON.stringify(worldMapGeoJson)} as FeatureCollection<Geometry, WorldMapCountryProperties>;
 `;
 
 const countriesContents = `import { WORLD_MAP_COUNTRIES } from "./worldMap";
@@ -261,5 +332,5 @@ fs.writeFileSync(path.join(outputDir, "worldMap.ts"), worldMapContents);
 fs.writeFileSync(path.join(outputDir, "countries.ts"), countriesContents);
 
 console.log(
-  `Generated ${allGeneratedCountries.length} countries into data/worldMap.ts (${generatedMarkers.length} supplemental markers)`,
+  `Generated ${allGeneratedCountries.length} countries into data/worldMap.ts`,
 );
