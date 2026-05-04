@@ -185,9 +185,7 @@ const allGeneratedCountries = atlasBackedCountries.map(({ code, code3, name, con
   code3,
   name,
   continent,
-})).sort((left, right) =>
-  left.name.localeCompare(right.name),
-);
+}));
 
 const geoJsonFeatureByCode = new Map([
   ...atlasBackedCountries.map((country) => [

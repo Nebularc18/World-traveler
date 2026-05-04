@@ -51,16 +51,20 @@ function WorldMapWebComponent(
           accessibilityHint="No map reset is available on web"
           accessibilityLabel="Reset map view"
           accessibilityRole="button"
+          accessibilityState={{ disabled: true }}
           accessible
+          disabled
+          onPress={() => undefined}
           style={[
             styles.resetButton,
+            styles.resetButtonDisabled,
             {
               backgroundColor: theme.colors.surface,
               borderColor: theme.colors.border,
             },
           ]}
         >
-          <MaterialCommunityIcons color={theme.colors.textMuted} name="fit-to-screen-outline" size={20} />
+          <MaterialCommunityIcons color={theme.colors.borderStrong} name="fit-to-screen-outline" size={20} />
         </Pressable>
       ) : null}
     </View>
@@ -108,5 +112,8 @@ const styles = StyleSheet.create({
     right: 20,
     top: 20,
     width: 44,
+  },
+  resetButtonDisabled: {
+    opacity: 0.48,
   },
 });

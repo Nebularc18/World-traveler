@@ -171,7 +171,6 @@ function WorldMapComponent(
 
   const handleCountryPress = useCallback(
     (event: NativeSyntheticEvent<PressEventWithFeatures>) => {
-      event.stopPropagation();
       const code = getPressedCountryCode(event);
 
       if (code) {
