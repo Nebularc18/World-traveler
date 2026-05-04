@@ -73,11 +73,11 @@ function buildStatusFillColor(statuses: CountryStatusMap, colors: {
   const expression: unknown[] = ["match", ["get", "code"]];
 
   if (visitedCodes.length > 0) {
-    expression.push(visitedCodes, colors.visited);
+    expression.push(["literal", visitedCodes], colors.visited);
   }
 
   if (wishlistedCodes.length > 0) {
-    expression.push(wishlistedCodes, colors.wishlisted);
+    expression.push(["literal", wishlistedCodes], colors.wishlisted);
   }
 
   expression.push(colors.unmarked);
