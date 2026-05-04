@@ -5,14 +5,13 @@
 - Expo SDK 55 with React Native and TypeScript
 - Expo Router for navigation and tabs
 - Expo development build workflow via `expo-dev-client`
-- `react-native-svg` for the political world map
-- `react-native-gesture-handler` and `react-native-reanimated` for pinch and pan
+- `@maplibre/maplibre-react-native` for the political world map and native zoom/pan gestures
 - AsyncStorage for local persistence
 
 ## Key Commands
 
 - `npm install` - install dependencies
-- `npm run generate:world-data` - regenerate the local country metadata and SVG path dataset
+- `npm run generate:world-data` - regenerate the local country metadata and GeoJSON map source
 - `npm run start` - start Metro for a development build client
 - `npm run android` - build and run the Android development build
 - `npm run lint` - run ESLint
@@ -46,7 +45,7 @@
 ## Map Data Approach
 
 - Core map data is local and committed in `data/worldMap.ts`
-- `scripts/generate-world-data.mjs` builds the dataset from `world-countries` plus `d3-geo`
-- The generated map uses a fixed rectangular equirectangular projection and includes Antarctica explicitly
-- Eleven ISO-assigned entries missing from `world-atlas` polygon geometry are added as supplemental marker shapes so the tracked dataset stays at 249 entries
-- Tracking totals use the same generated ISO-assigned dataset as the map, preventing stats/map drift
+- `scripts/generate-world-data.mjs` builds the dataset from `world-countries`, `world-atlas`, and `topojson-client`
+- The generated data includes country metadata and a local GeoJSON map source for UN member and observer states, plus Antarctica
+- The tracked dataset intentionally excludes ISO-assigned territories that lack full MapLibre-friendly polygon geometry
+- Tracking totals use the same generated dataset as the map, preventing stats/map drift

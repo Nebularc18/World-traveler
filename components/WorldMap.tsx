@@ -1,13 +1,22 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { forwardRef, memo, useImperativeHandle, useState } from "react";
-import { LayoutChangeEvent, Pressable, StyleSheet, View } from "react-native";
-import Svg, { G, Path, Rect } from "react-native-svg";
-import Animated, { clamp, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import {
+  Camera,
+  GeoJSONSource,
+  Layer,
+  Map as MapLibreMap,
+  type CameraRef,
+  type FilterSpecification,
+  type LngLatBounds,
+  type MapRef,
+  type PressEventWithFeatures,
+  type StyleSpecification,
+} from "@maplibre/maplibre-react-native";
+import type { DataDrivenPropertyValueSpecification } from "@maplibre/maplibre-gl-style-spec";
+import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useRef } from "react";
+import { type NativeSyntheticEvent, Pressable, StyleSheet, View } from "react-native";
 
-import { WORLD_MAP_COUNTRIES, WORLD_MAP_VIEWBOX } from "../data/worldMap";
+import { WORLD_MAP_GEOJSON } from "../data/worldMap";
 import { useThemePreference } from "../hooks/useThemePreference";
-import { getCountryStatusColor } from "../utils/countryHelpers";
 import type { CountryStatusMap } from "../theme/types";
 
 interface WorldMapProps {
@@ -24,109 +33,67 @@ export interface WorldMapHandle {
   zoomOut: () => void;
 }
 
-interface LayoutMetrics {
-  viewportWidth: number;
-  viewportHeight: number;
-  worldWidth: number;
-  worldHeight: number;
-  stripWidth: number;
-  contentLeft: number;
-}
+const WORLD_BOUNDS: LngLatBounds = [-180, -85, 180, 85];
+const MIN_ZOOM = 0;
+const MAX_ZOOM = 8;
+const ZOOM_STEP = 0.75;
+const SOURCE_ID = "world-countries";
+const COUNTRY_FILL_LAYER_ID = "country-fills";
+const COUNTRY_STROKE_LAYER_ID = "country-strokes";
+const SELECTED_COUNTRY_LAYER_ID = "selected-country-stroke";
 
-const MAX_SCALE = 6;
-const MAP_ASPECT_RATIO = WORLD_MAP_VIEWBOX.width / WORLD_MAP_VIEWBOX.height;
-const MAP_COUNTRIES = (() => {
-  const seen = new Set<string>();
-  const duplicates: string[] = [];
-  const uniqueCountries = [];
-
-  for (const country of WORLD_MAP_COUNTRIES) {
-    if (seen.has(country.code)) {
-      duplicates.push(country.code);
-      continue;
-    }
-
-    seen.add(country.code);
-    uniqueCountries.push(country);
-  }
-
-  if (__DEV__ && duplicates.length > 0) {
-    console.warn(`Duplicate world map country codes skipped: ${duplicates.join(", ")}`);
-  }
-
-  return uniqueCountries;
-})();
-
-function buildLayoutMetrics(width: number, height: number, immersive: boolean): LayoutMetrics {
-  if (immersive) {
-    const worldHeight = height;
-    const worldWidth = worldHeight * MAP_ASPECT_RATIO;
-
-    return {
-      viewportWidth: width,
-      viewportHeight: height,
-      worldWidth,
-      worldHeight,
-      stripWidth: worldWidth * 3,
-      contentLeft: -worldWidth,
-    };
-  }
-
-  const fitScale = Math.min(width / WORLD_MAP_VIEWBOX.width, height / WORLD_MAP_VIEWBOX.height);
-  const worldWidth = WORLD_MAP_VIEWBOX.width * fitScale;
-  const worldHeight = WORLD_MAP_VIEWBOX.height * fitScale;
-
+function buildBlankMapStyle(oceanColor: string): StyleSpecification {
   return {
-    viewportWidth: width,
-    viewportHeight: height,
-    worldWidth,
-    worldHeight,
-    stripWidth: worldWidth,
-    contentLeft: (width - worldWidth) / 2,
+    version: 8,
+    sources: {},
+    layers: [
+      {
+        id: "background",
+        type: "background",
+        paint: {
+          "background-color": oceanColor,
+        },
+      },
+    ],
   };
 }
 
-function clampVerticalTranslation(
-  value: number,
-  zoomScale: number,
-  viewportHeight: number,
-  worldHeight: number,
-) {
-  "worklet";
+function buildStatusFillColor(statuses: CountryStatusMap, colors: {
+  unmarked: string;
+  visited: string;
+  wishlisted: string;
+}): DataDrivenPropertyValueSpecification<string> {
+  const visitedCodes = Object.entries(statuses)
+    .filter(([, status]) => status === "visited")
+    .map(([code]) => code);
+  const wishlistedCodes = Object.entries(statuses)
+    .filter(([, status]) => status === "wishlisted")
+    .map(([code]) => code);
 
-  if (viewportHeight === 0 || worldHeight === 0) {
-    return 0;
+  const expression: unknown[] = ["match", ["get", "code"]];
+
+  if (visitedCodes.length > 0) {
+    expression.push(["literal", visitedCodes], colors.visited);
   }
 
-  const overflow = Math.max(0, (worldHeight * zoomScale - viewportHeight) / 2);
-  return clamp(value, -overflow, overflow);
+  if (wishlistedCodes.length > 0) {
+    expression.push(["literal", wishlistedCodes], colors.wishlisted);
+  }
+
+  expression.push(colors.unmarked);
+  return expression.length > 3
+    ? (expression as DataDrivenPropertyValueSpecification<string>)
+    : colors.unmarked;
 }
 
-function clampHorizontalTranslation(
-  value: number,
-  zoomScale: number,
-  viewportWidth: number,
-  worldWidth: number,
-) {
-  "worklet";
+function getPressedCountryCode(event: NativeSyntheticEvent<PressEventWithFeatures>) {
+  const feature = event.nativeEvent.features.find((candidate) => {
+    const code = candidate.properties?.code;
+    return typeof code === "string" && code.length > 0;
+  });
+  const code = feature?.properties?.code;
 
-  if (viewportWidth === 0 || worldWidth === 0) {
-    return 0;
-  }
-
-  const overflow = Math.max(0, (worldWidth * zoomScale - viewportWidth) / 2);
-  return clamp(value, -overflow, overflow);
-}
-
-function wrapHorizontalTranslation(value: number, loopWidth: number) {
-  "worklet";
-
-  if (loopWidth === 0) {
-    return 0;
-  }
-
-  const halfLoopWidth = loopWidth / 2;
-  return ((((value + halfLoopWidth) % loopWidth) + loopWidth) % loopWidth) - halfLoopWidth;
+  return typeof code === "string" ? code : null;
 }
 
 function WorldMapComponent(
@@ -140,131 +107,78 @@ function WorldMapComponent(
   ref: React.ForwardedRef<WorldMapHandle>,
 ) {
   const { theme } = useThemePreference();
-  const [layoutMetrics, setLayoutMetrics] = useState<LayoutMetrics>({
-    viewportWidth: 0,
-    viewportHeight: 0,
-    worldWidth: 0,
-    worldHeight: 0,
-    stripWidth: 0,
-    contentLeft: 0,
-  });
+  const cameraRef = useRef<CameraRef>(null);
+  const mapRef = useRef<MapRef>(null);
 
-  const scale = useSharedValue(1);
-  const savedScale = useSharedValue(1);
-  const panX = useSharedValue(0);
-  const panY = useSharedValue(0);
-  const savedPanX = useSharedValue(0);
-  const savedPanY = useSharedValue(0);
-  const viewportWidth = useSharedValue(0);
-  const viewportHeight = useSharedValue(0);
-  const worldWidth = useSharedValue(0);
-  const worldHeight = useSharedValue(0);
-  const baseTranslateX = useSharedValue(0);
+  const mapStyle = useMemo(() => buildBlankMapStyle(theme.colors.mapOcean), [theme.colors.mapOcean]);
+  const fillColor = useMemo(
+    () =>
+      buildStatusFillColor(statuses, {
+        unmarked: theme.colors.mapUnmarked,
+        visited: theme.colors.mapVisited,
+        wishlisted: theme.colors.mapWishlisted,
+      }),
+    [statuses, theme.colors.mapUnmarked, theme.colors.mapVisited, theme.colors.mapWishlisted],
+  );
+  const selectedFilter = useMemo<FilterSpecification | null>(
+    () => (selectedCode ? ["==", ["get", "code"], selectedCode] : null),
+    [selectedCode],
+  );
 
-  const normalizeHorizontalPan = (nextPanX: number, zoomScale: number) => {
-    "worklet";
-
-    if (immersive) {
-      return wrapHorizontalTranslation(nextPanX, worldWidth.value * zoomScale);
+  const resetView = useCallback(() => {
+    if (!cameraRef.current) {
+      return;
     }
 
-    return clampHorizontalTranslation(nextPanX, zoomScale, viewportWidth.value, worldWidth.value);
-  };
+    try {
+      cameraRef.current.fitBounds(WORLD_BOUNDS, {
+        duration: 300,
+        padding: {
+          top: 24,
+          right: 16,
+          bottom: 24,
+          left: 16,
+        },
+      });
+    } catch {
+      // MapLibre can reject camera changes before the native map is ready.
+    }
+  }, []);
 
-  const resetView = () => {
-    scale.value = 1;
-    savedScale.value = 1;
-    panX.value = 0;
-    panY.value = 0;
-    savedPanX.value = 0;
-    savedPanY.value = 0;
-  };
+  const changeZoom = useCallback(async (delta: number) => {
+    if (!mapRef.current || !cameraRef.current) {
+      return;
+    }
 
-  const setZoom = (nextScale: number) => {
-    const clampedScale = clamp(nextScale, 1, MAX_SCALE);
-    scale.value = clampedScale;
-    savedScale.value = clampedScale;
-    panX.value = normalizeHorizontalPan(panX.value, clampedScale);
-    panY.value = clampVerticalTranslation(panY.value, clampedScale, viewportHeight.value, worldHeight.value);
-    savedPanX.value = panX.value;
-    savedPanY.value = panY.value;
-  };
+    try {
+      const currentZoom = await mapRef.current.getZoom();
+      const nextZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, currentZoom + delta));
+      cameraRef.current.zoomTo(nextZoom, { duration: 180 });
+    } catch {
+      // Ignore zoom requests before MapLibre has finished wiring native refs.
+    }
+  }, []);
 
   useImperativeHandle(ref, () => ({
     reset: resetView,
-    zoomIn: () => setZoom(scale.value + 0.6),
-    zoomOut: () => setZoom(scale.value - 0.6),
-  }));
-
-  const handleLayout = (event: LayoutChangeEvent) => {
-    const { width, height } = event.nativeEvent.layout;
-    const nextLayoutMetrics = buildLayoutMetrics(width, height, immersive);
-
-    setLayoutMetrics(nextLayoutMetrics);
-    viewportWidth.value = nextLayoutMetrics.viewportWidth;
-    viewportHeight.value = nextLayoutMetrics.viewportHeight;
-    worldWidth.value = nextLayoutMetrics.worldWidth;
-    worldHeight.value = nextLayoutMetrics.worldHeight;
-    baseTranslateX.value = immersive
-      ? (nextLayoutMetrics.viewportWidth - nextLayoutMetrics.worldWidth) / 2
-      : 0;
-
-    panX.value = normalizeHorizontalPan(panX.value, scale.value);
-    panY.value = clampVerticalTranslation(
-      panY.value,
-      scale.value,
-      nextLayoutMetrics.viewportHeight,
-      nextLayoutMetrics.worldHeight,
-    );
-    savedPanX.value = panX.value;
-    savedPanY.value = panY.value;
-  };
-
-  const pan = Gesture.Pan()
-    .onUpdate((event) => {
-      panX.value = normalizeHorizontalPan(savedPanX.value + event.translationX, scale.value);
-      panY.value = clampVerticalTranslation(
-        savedPanY.value + event.translationY,
-        scale.value,
-        viewportHeight.value,
-        worldHeight.value,
-      );
-    })
-    .onEnd(() => {
-      savedPanX.value = panX.value;
-      savedPanY.value = panY.value;
-    });
-
-  const pinch = Gesture.Pinch()
-    .onUpdate((event) => {
-      const nextScale = clamp(savedScale.value * event.scale, 1, MAX_SCALE);
-      scale.value = nextScale;
-      panX.value = normalizeHorizontalPan(panX.value, nextScale);
-      panY.value = clampVerticalTranslation(panY.value, nextScale, viewportHeight.value, worldHeight.value);
-    })
-    .onEnd(() => {
-      savedScale.value = scale.value;
-      savedPanX.value = panX.value;
-      savedPanY.value = panY.value;
-    });
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { scale: scale.value },
-      { translateX: baseTranslateX.value + panX.value },
-      { translateY: panY.value },
-    ],
-  }));
-
-  const copyCount = immersive ? 3 : 1;
-  const stripStyle = [
-    styles.mapStrip,
-    {
-      left: layoutMetrics.contentLeft,
-      width: layoutMetrics.stripWidth,
-      height: layoutMetrics.worldHeight,
+    zoomIn: () => {
+      void changeZoom(ZOOM_STEP);
     },
-  ];
+    zoomOut: () => {
+      void changeZoom(-ZOOM_STEP);
+    },
+  }), [changeZoom, resetView]);
+
+  const handleCountryPress = useCallback(
+    (event: NativeSyntheticEvent<PressEventWithFeatures>) => {
+      const code = getPressedCountryCode(event);
+
+      if (code) {
+        onCountryPress(code);
+      }
+    },
+    [onCountryPress],
+  );
 
   return (
     <View
@@ -272,56 +186,80 @@ function WorldMapComponent(
         styles.container,
         immersive ? styles.immersiveContainer : styles.card,
         {
-          backgroundColor: immersive ? theme.colors.mapOcean : theme.colors.card,
+          backgroundColor: theme.colors.mapOcean,
           borderColor: immersive ? "transparent" : theme.colors.border,
         },
       ]}
     >
-      <GestureDetector gesture={Gesture.Simultaneous(pan, pinch)}>
-        <View onLayout={handleLayout} style={styles.viewport}>
-          {layoutMetrics.worldWidth > 0 && layoutMetrics.worldHeight > 0 ? (
-            <Animated.View style={[stripStyle, animatedStyle]}>
-              <Svg
-                height={layoutMetrics.worldHeight}
-                preserveAspectRatio="none"
-                style={styles.mapCopy}
-                viewBox={`0 0 ${WORLD_MAP_VIEWBOX.width * copyCount} ${WORLD_MAP_VIEWBOX.height}`}
-                width={layoutMetrics.stripWidth}
-              >
-                {Array.from({ length: copyCount }, (_, copyIndex) => (
-                  <G key={`copy-${copyIndex}`} x={copyIndex * WORLD_MAP_VIEWBOX.width}>
-                    <Rect
-                      fill={theme.colors.mapOcean}
-                      height={WORLD_MAP_VIEWBOX.height}
-                      width={WORLD_MAP_VIEWBOX.width}
-                      x={0}
-                      y={0}
-                    />
-                    {MAP_COUNTRIES.map((country) => {
-                      const status = statuses[country.code] ?? "unmarked";
-                      const isSelected = selectedCode === country.code;
-
-                      return (
-                        <Path
-                          clipRule="evenodd"
-                          d={country.path}
-                          fill={getCountryStatusColor(theme, status)}
-                          fillRule="evenodd"
-                          key={`${copyIndex}-${country.code}`}
-                          onPress={() => onCountryPress(country.code)}
-                          stroke={isSelected ? theme.colors.mapSelection : theme.colors.borderStrong}
-                          strokeLinejoin="round"
-                          strokeWidth={isSelected ? 2.2 : 1.1}
-                        />
-                      );
-                    })}
-                  </G>
-                ))}
-              </Svg>
-            </Animated.View>
+      <MapLibreMap
+        attribution={false}
+        compass={false}
+        doubleTapHoldZoom
+        doubleTapZoom
+        dragPan
+        logo={false}
+        mapStyle={mapStyle}
+        ref={mapRef}
+        scaleBar={false}
+        style={styles.map}
+        touchPitch={false}
+        touchRotate={false}
+        touchZoom
+      >
+        <Camera
+          initialViewState={{
+            bounds: WORLD_BOUNDS,
+            padding: {
+              top: 24,
+              right: 16,
+              bottom: 24,
+              left: 16,
+            },
+          }}
+          maxZoom={MAX_ZOOM}
+          minZoom={MIN_ZOOM}
+          ref={cameraRef}
+        />
+        <GeoJSONSource
+          data={WORLD_MAP_GEOJSON}
+          hitbox={{ top: 12, right: 12, bottom: 12, left: 12 }}
+          id={SOURCE_ID}
+          onPress={handleCountryPress}
+          tolerance={0.15}
+        >
+          <Layer
+            id={COUNTRY_FILL_LAYER_ID}
+            paint={{
+              "fill-color": fillColor,
+              "fill-opacity": 1,
+            }}
+            source={SOURCE_ID}
+            type="fill"
+          />
+          <Layer
+            id={COUNTRY_STROKE_LAYER_ID}
+            paint={{
+              "line-color": theme.colors.mapStroke,
+              "line-opacity": theme.isDark ? 0.72 : 0.62,
+              "line-width": ["interpolate", ["linear"], ["zoom"], 0, 0.35, 3, 0.8, 6, 1.4],
+            }}
+            source={SOURCE_ID}
+            type="line"
+          />
+          {selectedFilter ? (
+            <Layer
+              filter={selectedFilter}
+              id={SELECTED_COUNTRY_LAYER_ID}
+              paint={{
+                "line-color": theme.colors.mapSelection,
+                "line-width": ["interpolate", ["linear"], ["zoom"], 0, 1.2, 3, 2.4, 6, 4],
+              }}
+              source={SOURCE_ID}
+              type="line"
+            />
           ) : null}
-        </View>
-      </GestureDetector>
+        </GeoJSONSource>
+      </MapLibreMap>
 
       {showResetButton ? (
         <Pressable
@@ -366,18 +304,8 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     minHeight: 0,
   },
-  viewport: {
+  map: {
     flex: 1,
-    overflow: "hidden",
-  },
-  mapStrip: {
-    position: "absolute",
-    top: 0,
-  },
-  mapCopy: {
-    left: 0,
-    position: "absolute",
-    top: 0,
   },
   resetButton: {
     alignItems: "center",

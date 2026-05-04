@@ -3,7 +3,6 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { StyleSheet } from "react-native";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SystemUI from "expo-system-ui";
 
@@ -33,15 +32,13 @@ function RootNavigation() {
 
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={styles.root}>
-      <SafeAreaProvider>
-        <ThemePreferenceProvider>
-          <CountryStatusesProvider>
-            <RootNavigation />
-          </CountryStatusesProvider>
-        </ThemePreferenceProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <SafeAreaProvider style={styles.root}>
+      <ThemePreferenceProvider>
+        <CountryStatusesProvider>
+          <RootNavigation />
+        </CountryStatusesProvider>
+      </ThemePreferenceProvider>
+    </SafeAreaProvider>
   );
 }
 
