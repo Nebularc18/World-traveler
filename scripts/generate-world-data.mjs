@@ -7,6 +7,7 @@ import { feature } from "topojson-client";
 const require = createRequire(import.meta.url);
 const countries = require("world-countries");
 const worldAtlas = require("world-atlas/countries-10m.json");
+const interactionWorldAtlas = require("world-atlas/countries-50m.json");
 
 const outputDir = path.resolve(process.cwd(), "data");
 const nonMemberObserverStateCodes = new Set(["PS", "VA"]);
@@ -139,10 +140,14 @@ function normalizeAntimeridianRing(ring) {
     return ring;
   }
 
+  const inputIsClosed =
+    ring.length > 1 &&
+    ring[0][0] === ring[ring.length - 1][0] &&
+    ring[0][1] === ring[ring.length - 1][1];
   let longitudeOffset = 0;
   let previousLongitude = ring[0][0];
 
-  return ring.map(([longitude, latitude], index) => {
+  const normalizedRing = ring.map(([longitude, latitude], index) => {
     if (index > 0) {
       const longitudeDelta = longitude + longitudeOffset - previousLongitude;
 
@@ -157,6 +162,37 @@ function normalizeAntimeridianRing(ring) {
     previousLongitude = normalizedLongitude;
     return [normalizedLongitude, latitude];
   });
+
+  const firstPosition = normalizedRing[0];
+  const lastPosition = normalizedRing[normalizedRing.length - 1];
+
+  if (
+    !inputIsClosed ||
+    (firstPosition[0] === lastPosition[0] && firstPosition[1] === lastPosition[1])
+  ) {
+    return normalizedRing;
+  }
+
+  const longitudeSpan = Math.abs(lastPosition[0] - firstPosition[0]);
+
+  if (longitudeSpan !== 360) {
+    throw new Error(`Unable to close antimeridian ring with longitude span ${longitudeSpan}.`);
+  }
+
+  const poleLatitude = normalizedRing.every(([, latitude]) => latitude <= 0) ? -90 : 90;
+  const longitudeDirection = firstPosition[0] < lastPosition[0] ? -1 : 1;
+  const polarClosure = [[lastPosition[0], poleLatitude]];
+
+  for (
+    let longitude = lastPosition[0] + longitudeDirection * 90;
+    longitudeDirection < 0 ? longitude > firstPosition[0] : longitude < firstPosition[0];
+    longitude += longitudeDirection * 90
+  ) {
+    polarClosure.push([longitude, poleLatitude]);
+  }
+
+  polarClosure.push([firstPosition[0], poleLatitude], firstPosition);
+  return [...normalizedRing, ...polarClosure];
 }
 
 function normalizeAntimeridianPolygons(polygons) {
@@ -203,6 +239,24 @@ const geoJsonFeatureByCode = new Map([
   ]),
 ]);
 
+const interactionAtlasFeaturesByCode = new Map();
+
+for (const topologyFeature of feature(
+  interactionWorldAtlas,
+  interactionWorldAtlas.objects.countries,
+).features) {
+  const numericCode = String(topologyFeature.id).padStart(3, "0");
+  const country = countryByNumericCode.get(numericCode);
+
+  if (!country) {
+    continue;
+  }
+
+  const countryFeatures = interactionAtlasFeaturesByCode.get(country.cca2) ?? [];
+  countryFeatures.push(topologyFeature);
+  interactionAtlasFeaturesByCode.set(country.cca2, countryFeatures);
+}
+
 const worldMapGeoJson = {
   type: "FeatureCollection",
   features: allGeneratedCountries.map((country) => {
@@ -213,6 +267,29 @@ const worldMapGeoJson = {
     }
 
     return geoJsonFeature;
+  }),
+};
+
+const worldMapInteractionGeoJson = {
+  type: "FeatureCollection",
+  features: allGeneratedCountries.map((country) => {
+    const interactionFeatures = interactionAtlasFeaturesByCode.get(country.code);
+    const detailedFeature = geoJsonFeatureByCode.get(country.code);
+
+    if (!detailedFeature) {
+      throw new Error(`Missing detailed GeoJSON feature for ${country.code}`);
+    }
+
+    return {
+      type: "Feature",
+      properties: detailedFeature.properties,
+      geometry: interactionFeatures
+        ? buildCountryGeometry({
+            type: "FeatureCollection",
+            features: interactionFeatures,
+          })
+        : detailedFeature.geometry,
+    };
   }),
 };
 
@@ -249,6 +326,8 @@ export type WorldMapCountryProperties = WorldMapCountry;
 export const WORLD_MAP_COUNTRIES: WorldMapCountry[] = ${JSON.stringify(allGeneratedCountries, null, 2)} as WorldMapCountry[];
 
 export const WORLD_MAP_GEOJSON = ${JSON.stringify(worldMapGeoJson)} as FeatureCollection<Geometry, WorldMapCountryProperties>;
+
+export const WORLD_MAP_INTERACTION_GEOJSON = ${JSON.stringify(worldMapInteractionGeoJson)} as FeatureCollection<Geometry, WorldMapCountryProperties>;
 `;
 
 const countriesContents = `import { WORLD_MAP_COUNTRIES } from "./worldMap";
