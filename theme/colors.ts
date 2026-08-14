@@ -57,7 +57,7 @@ export const darkColors: ThemeColors = {
   mapUnmarked: "#64788B",
   mapVisited: "#44C2AA",
   mapWishlisted: "#F0B24F",
-  mapStroke: "#A7BBCB",
+  mapStroke: "#D6E5EF",
   mapSelection: "#F3F5F7",
   overlay: "rgba(0, 0, 0, 0.5)",
   shadow: "rgba(0, 0, 0, 0.35)",

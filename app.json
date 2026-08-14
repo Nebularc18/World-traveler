@@ -5,12 +5,12 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "worldtraveler",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/world-traveler-icon.png",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/world-traveler-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0A1824"
     },
     "ios": {
       "supportsTablet": true,
@@ -19,13 +19,13 @@
     "android": {
       "package": "com.hampu.worldtraveler",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/world-traveler-icon.png",
+        "backgroundColor": "#0A1824"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/world-traveler-icon.png"
     },
     "plugins": [
       "expo-router",

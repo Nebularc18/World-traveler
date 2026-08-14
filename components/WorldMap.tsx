@@ -15,7 +15,7 @@ import type { DataDrivenPropertyValueSpecification } from "@maplibre/maplibre-gl
 import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useRef } from "react";
 import { type NativeSyntheticEvent, Pressable, StyleSheet, View } from "react-native";
 
-import { WORLD_MAP_GEOJSON } from "../data/worldMap";
+import { WORLD_MAP_GEOJSON, WORLD_MAP_INTERACTION_GEOJSON } from "../data/worldMap";
 import { useThemePreference } from "../hooks/useThemePreference";
 import type { CountryStatusMap } from "../theme/types";
 
@@ -38,8 +38,10 @@ const MIN_ZOOM = 0;
 const MAX_ZOOM = 8;
 const ZOOM_STEP = 0.75;
 const SOURCE_ID = "world-countries";
+const INTERACTION_SOURCE_ID = "world-country-interactions";
 const COUNTRY_FILL_LAYER_ID = "country-fills";
 const COUNTRY_STROKE_LAYER_ID = "country-strokes";
+const COUNTRY_INTERACTION_LAYER_ID = "country-interactions";
 const SELECTED_COUNTRY_LAYER_ID = "selected-country-stroke";
 
 function buildBlankMapStyle(oceanColor: string): StyleSpecification {
@@ -73,11 +75,11 @@ function buildStatusFillColor(statuses: CountryStatusMap, colors: {
   const expression: unknown[] = ["match", ["get", "code"]];
 
   if (visitedCodes.length > 0) {
-    expression.push(["literal", visitedCodes], colors.visited);
+    expression.push(visitedCodes, colors.visited);
   }
 
   if (wishlistedCodes.length > 0) {
-    expression.push(["literal", wishlistedCodes], colors.wishlisted);
+    expression.push(wishlistedCodes, colors.wishlisted);
   }
 
   expression.push(colors.unmarked);
@@ -95,6 +97,65 @@ function getPressedCountryCode(event: NativeSyntheticEvent<PressEventWithFeature
 
   return typeof code === "string" ? code : null;
 }
+
+interface CountrySourceLayersProps {
+  fillColor: DataDrivenPropertyValueSpecification<string>;
+  isDark: boolean;
+  mapStrokeColor: string;
+  onPress: (event: NativeSyntheticEvent<PressEventWithFeatures>) => void;
+}
+
+const CountrySourceLayers = memo(function CountrySourceLayers({
+  fillColor,
+  isDark,
+  mapStrokeColor,
+  onPress,
+}: CountrySourceLayersProps) {
+  return (
+    <>
+      <GeoJSONSource data={WORLD_MAP_GEOJSON} id={SOURCE_ID}>
+        <Layer
+          id={COUNTRY_FILL_LAYER_ID}
+          paint={{
+            "fill-color": fillColor,
+            "fill-opacity": 1,
+          }}
+          source={SOURCE_ID}
+          type="fill"
+        />
+        <Layer
+          id={COUNTRY_STROKE_LAYER_ID}
+          paint={{
+            "line-color": mapStrokeColor,
+            "line-opacity": isDark ? 0.9 : 0.62,
+            "line-width": isDark
+              ? ["interpolate", ["linear"], ["zoom"], 0, 0.5, 3, 1, 6, 1.65]
+              : ["interpolate", ["linear"], ["zoom"], 0, 0.35, 3, 0.8, 6, 1.4],
+          }}
+          source={SOURCE_ID}
+          type="line"
+        />
+      </GeoJSONSource>
+      <GeoJSONSource
+        data={WORLD_MAP_INTERACTION_GEOJSON}
+        hitbox={{ top: 12, right: 12, bottom: 12, left: 12 }}
+        id={INTERACTION_SOURCE_ID}
+        onPress={onPress}
+        tolerance={0.15}
+      >
+        <Layer
+          id={COUNTRY_INTERACTION_LAYER_ID}
+          paint={{
+            "fill-color": "#000000",
+            "fill-opacity": 0,
+          }}
+          source={INTERACTION_SOURCE_ID}
+          type="fill"
+        />
+      </GeoJSONSource>
+    </>
+  );
+});
 
 function WorldMapComponent(
   {
@@ -220,45 +281,24 @@ function WorldMapComponent(
           minZoom={MIN_ZOOM}
           ref={cameraRef}
         />
-        <GeoJSONSource
-          data={WORLD_MAP_GEOJSON}
-          hitbox={{ top: 12, right: 12, bottom: 12, left: 12 }}
-          id={SOURCE_ID}
+        <CountrySourceLayers
+          fillColor={fillColor}
+          isDark={theme.isDark}
+          mapStrokeColor={theme.colors.mapStroke}
           onPress={handleCountryPress}
-          tolerance={0.15}
-        >
+        />
+        {selectedFilter ? (
           <Layer
-            id={COUNTRY_FILL_LAYER_ID}
+            filter={selectedFilter}
+            id={SELECTED_COUNTRY_LAYER_ID}
             paint={{
-              "fill-color": fillColor,
-              "fill-opacity": 1,
-            }}
-            source={SOURCE_ID}
-            type="fill"
-          />
-          <Layer
-            id={COUNTRY_STROKE_LAYER_ID}
-            paint={{
-              "line-color": theme.colors.mapStroke,
-              "line-opacity": theme.isDark ? 0.72 : 0.62,
-              "line-width": ["interpolate", ["linear"], ["zoom"], 0, 0.35, 3, 0.8, 6, 1.4],
+              "line-color": theme.colors.mapSelection,
+              "line-width": ["interpolate", ["linear"], ["zoom"], 0, 1.2, 3, 2.4, 6, 4],
             }}
             source={SOURCE_ID}
             type="line"
           />
-          {selectedFilter ? (
-            <Layer
-              filter={selectedFilter}
-              id={SELECTED_COUNTRY_LAYER_ID}
-              paint={{
-                "line-color": theme.colors.mapSelection,
-                "line-width": ["interpolate", ["linear"], ["zoom"], 0, 1.2, 3, 2.4, 6, 4],
-              }}
-              source={SOURCE_ID}
-              type="line"
-            />
-          ) : null}
-        </GeoJSONSource>
+        ) : null}
       </MapLibreMap>
 
       {showResetButton ? (
