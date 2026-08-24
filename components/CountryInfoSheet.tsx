@@ -153,13 +153,12 @@ export function CountryInfoSheet({
                         }
 
                         setPendingStatus(option.value);
-                        onClose();
 
                         try {
                           const didUpdate = await onSelectStatus(option.value);
 
-                          if (!didUpdate) {
-                            console.warn("Failed to update country status.");
+                          if (didUpdate) {
+                            onClose();
                           }
                         } catch {
                           console.warn("Failed to update country status.");
