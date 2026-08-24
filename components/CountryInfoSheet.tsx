@@ -70,7 +70,7 @@ export function CountryInfoSheet({
 
   return (
     <Modal
-      animationType="slide"
+      animationType="none"
       onRequestClose={() => {
         if (!isWriting) {
           onClose();
@@ -153,12 +153,13 @@ export function CountryInfoSheet({
                         }
 
                         setPendingStatus(option.value);
+                        onClose();
 
                         try {
                           const didUpdate = await onSelectStatus(option.value);
 
-                          if (didUpdate) {
-                            onClose();
+                          if (!didUpdate) {
+                            console.warn("Failed to update country status.");
                           }
                         } catch {
                           console.warn("Failed to update country status.");

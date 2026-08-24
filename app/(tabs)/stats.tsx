@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -10,7 +11,7 @@ import { calculateTravelStats, formatPercentage } from "../../utils/stats";
 export default function StatsScreen() {
   const { theme } = useThemePreference();
   const { statuses } = useCountryStatuses();
-  const stats = calculateTravelStats(countries, statuses);
+  const stats = useMemo(() => calculateTravelStats(countries, statuses), [statuses]);
 
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: theme.colors.background }]} edges={["top"]}>
