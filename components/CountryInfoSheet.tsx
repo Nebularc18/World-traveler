@@ -70,7 +70,7 @@ export function CountryInfoSheet({
 
   return (
     <Modal
-      animationType="slide"
+      animationType="none"
       onRequestClose={() => {
         if (!isWriting) {
           onClose();

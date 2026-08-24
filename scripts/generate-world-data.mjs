@@ -6,8 +6,8 @@ import { feature } from "topojson-client";
 
 const require = createRequire(import.meta.url);
 const countries = require("world-countries");
-const worldAtlas = require("world-atlas/countries-10m.json");
-const interactionWorldAtlas = require("world-atlas/countries-50m.json");
+const worldAtlas = require("world-atlas/countries-50m.json");
+const detailedWorldAtlas = require("world-atlas/countries-10m.json");
 
 const outputDir = path.resolve(process.cwd(), "data");
 const nonMemberObserverStateCodes = new Set(["PS", "VA"]);
@@ -43,6 +43,12 @@ const countryByNumericCode = new Map(
 );
 
 const atlasFeatures = feature(worldAtlas, worldAtlas.objects.countries).features;
+const atlasFeatureIds = new Set(atlasFeatures.map((atlasFeature) => atlasFeature.id));
+atlasFeatures.push(
+  ...feature(detailedWorldAtlas, detailedWorldAtlas.objects.countries).features.filter(
+    (atlasFeature) => !atlasFeatureIds.has(atlasFeature.id),
+  ),
+);
 const groupedCountries = new Map();
 
 for (const topologyFeature of atlasFeatures) {
@@ -239,24 +245,6 @@ const geoJsonFeatureByCode = new Map([
   ]),
 ]);
 
-const interactionAtlasFeaturesByCode = new Map();
-
-for (const topologyFeature of feature(
-  interactionWorldAtlas,
-  interactionWorldAtlas.objects.countries,
-).features) {
-  const numericCode = String(topologyFeature.id).padStart(3, "0");
-  const country = countryByNumericCode.get(numericCode);
-
-  if (!country) {
-    continue;
-  }
-
-  const countryFeatures = interactionAtlasFeaturesByCode.get(country.cca2) ?? [];
-  countryFeatures.push(topologyFeature);
-  interactionAtlasFeaturesByCode.set(country.cca2, countryFeatures);
-}
-
 const worldMapGeoJson = {
   type: "FeatureCollection",
   features: allGeneratedCountries.map((country) => {
@@ -267,29 +255,6 @@ const worldMapGeoJson = {
     }
 
     return geoJsonFeature;
-  }),
-};
-
-const worldMapInteractionGeoJson = {
-  type: "FeatureCollection",
-  features: allGeneratedCountries.map((country) => {
-    const interactionFeatures = interactionAtlasFeaturesByCode.get(country.code);
-    const detailedFeature = geoJsonFeatureByCode.get(country.code);
-
-    if (!detailedFeature) {
-      throw new Error(`Missing detailed GeoJSON feature for ${country.code}`);
-    }
-
-    return {
-      type: "Feature",
-      properties: detailedFeature.properties,
-      geometry: interactionFeatures
-        ? buildCountryGeometry({
-            type: "FeatureCollection",
-            features: interactionFeatures,
-          })
-        : detailedFeature.geometry,
-    };
   }),
 };
 
@@ -326,8 +291,6 @@ export type WorldMapCountryProperties = WorldMapCountry;
 export const WORLD_MAP_COUNTRIES: WorldMapCountry[] = ${JSON.stringify(allGeneratedCountries, null, 2)} as WorldMapCountry[];
 
 export const WORLD_MAP_GEOJSON = ${JSON.stringify(worldMapGeoJson)} as FeatureCollection<Geometry, WorldMapCountryProperties>;
-
-export const WORLD_MAP_INTERACTION_GEOJSON = ${JSON.stringify(worldMapInteractionGeoJson)} as FeatureCollection<Geometry, WorldMapCountryProperties>;
 `;
 
 const countriesContents = `import { WORLD_MAP_COUNTRIES } from "./worldMap";

@@ -15,7 +15,7 @@ import type { DataDrivenPropertyValueSpecification } from "@maplibre/maplibre-gl
 import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useRef } from "react";
 import { type NativeSyntheticEvent, Pressable, StyleSheet, View } from "react-native";
 
-import { WORLD_MAP_GEOJSON, WORLD_MAP_INTERACTION_GEOJSON } from "../data/worldMap";
+import { WORLD_MAP_GEOJSON } from "../data/worldMap";
 import { useThemePreference } from "../hooks/useThemePreference";
 import type { CountryStatusMap } from "../theme/types";
 
@@ -38,10 +38,8 @@ const MIN_ZOOM = 0;
 const MAX_ZOOM = 8;
 const ZOOM_STEP = 0.75;
 const SOURCE_ID = "world-countries";
-const INTERACTION_SOURCE_ID = "world-country-interactions";
 const COUNTRY_FILL_LAYER_ID = "country-fills";
 const COUNTRY_STROKE_LAYER_ID = "country-strokes";
-const COUNTRY_INTERACTION_LAYER_ID = "country-interactions";
 const SELECTED_COUNTRY_LAYER_ID = "selected-country-stroke";
 
 function buildBlankMapStyle(oceanColor: string): StyleSpecification {
@@ -113,7 +111,13 @@ const CountrySourceLayers = memo(function CountrySourceLayers({
 }: CountrySourceLayersProps) {
   return (
     <>
-      <GeoJSONSource data={WORLD_MAP_GEOJSON} id={SOURCE_ID}>
+      <GeoJSONSource
+        data={WORLD_MAP_GEOJSON}
+        hitbox={{ top: 12, right: 12, bottom: 12, left: 12 }}
+        id={SOURCE_ID}
+        onPress={onPress}
+        tolerance={0.15}
+      >
         <Layer
           id={COUNTRY_FILL_LAYER_ID}
           paint={{
@@ -134,23 +138,6 @@ const CountrySourceLayers = memo(function CountrySourceLayers({
           }}
           source={SOURCE_ID}
           type="line"
-        />
-      </GeoJSONSource>
-      <GeoJSONSource
-        data={WORLD_MAP_INTERACTION_GEOJSON}
-        hitbox={{ top: 12, right: 12, bottom: 12, left: 12 }}
-        id={INTERACTION_SOURCE_ID}
-        onPress={onPress}
-        tolerance={0.15}
-      >
-        <Layer
-          id={COUNTRY_INTERACTION_LAYER_ID}
-          paint={{
-            "fill-color": "#000000",
-            "fill-opacity": 0,
-          }}
-          source={INTERACTION_SOURCE_ID}
-          type="fill"
         />
       </GeoJSONSource>
     </>
@@ -255,8 +242,8 @@ function WorldMapComponent(
       <MapLibreMap
         attribution={false}
         compass={false}
-        doubleTapHoldZoom
-        doubleTapZoom
+        doubleTapHoldZoom={false}
+        doubleTapZoom={false}
         dragPan
         logo={false}
         mapStyle={mapStyle}
